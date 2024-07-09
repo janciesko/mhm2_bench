@@ -1,0 +1,388 @@
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /-WIP$/
+      when: never
+    - when: always
+
+variables:
+  GIT_STRATEGY: fetch
+  REGISTRY: registry.gitlab.com
+  APPLICATION: upcxx_utils
+  TEST_IMAGE: $REGISTRY/$REGISTRY_USER/$APPLICATION:latest
+  RELEASE_IMAGE: $REGISTRY/$REGISTRY_USER/$APPLICATION:$CI_BUILD_REF_NAME
+  UPCXX_VER: 2023.3.0
+  UPCXX_MODULE_VER: nightly
+
+
+stages:
+  - build
+  - validation
+  - accuracy
+
+#
+# perlmutter
+#
+
+Perlmutter:build:
+  stage: build
+  tags:
+    - Perlmutter
+  script:
+    - set -e
+    - git submodule init
+    - git submodule sync
+    - git submodule update
+    - echo "Establishing variables"
+    - export UPCXX_UTILS_SOURCE=$(pwd)
+    - export BASE=${PSCRATCH}/gitlab-ci/${NERSC_HOST}-${CI_PROJECT_NAME}-${USER}
+    - export CI_SCRATCH=${BASE}/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export INSTALL_PREFIX=${CI_SCRATCH}/install
+    - export BUILD_PREFIX=${CI_SCRATCH}/build
+    - export RUN_PREFIX=${CI_SCRATCH}/runs
+    - echo "BASE=${BASE} CI_SCRATCH=${CI_SCRATCH}"
+    - mkdir -p ${BASE}
+    - rm -rf ${CI_SCRATCH}
+    - echo "Cleaning out old installs"
+    - find ${BASE} -maxdepth 1  -name ${CI_PROJECT_NAME}'-*'  -mtime +14 -type d -exec rm -rf '{}' ';' || /bin/true
+    - mkdir -p ${CI_SCRATCH} ${RUN_PREFIX}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/build-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/build-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/build-${dt}.log and .err"
+    - cd ${CI_SCRATCH}
+    - export UPCXX_UTILS_NEW_SOURCE=${CI_SCRATCH}/repo
+    - echo "Copying source from ${UPCXX_UTILS_SOURCE}/ to ${UPCXX_UTILS_NEW_SOURCE}"
+    - mkdir -p ${UPCXX_UTILS_NEW_SOURCE}
+    - rsync -a ${UPCXX_UTILS_SOURCE}/ ${UPCXX_UTILS_NEW_SOURCE}/
+    - export UPCXX_UTILS_SOURCE=${UPCXX_UTILS_NEW_SOURCE}
+    - sbatch --account=m2865 --qos=shared -c 16 --time=30:00 --nodes=1 -C cpu --wait --wrap="${UPCXX_UTILS_SOURCE}/contrib/ci-perlmutter.build.sh"
+    - echo "Completed"
+
+Perlmutter:validation:
+  stage: validation
+  tags:
+    - Perlmutter
+  script:
+    - set -e
+    - echo "Establishing variables"
+    - export BASE=${PSCRATCH}/gitlab-ci/${NERSC_HOST}-${CI_PROJECT_NAME}-${USER}
+    - export CI_SCRATCH=${BASE}/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export INSTALL_PREFIX=${CI_SCRATCH}/install
+    - export BUILD_PREFIX=${CI_SCRATCH}/build
+    - export RUN_PREFIX=${CI_SCRATCH}/runs
+    - export UPCXX_UTILS_SOURCE=${CI_SCRATCH}/repo
+    - echo "BASE=${BASE} CI_SCRATCH=${CI_SCRATCH}"
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/validate-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/validate-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/validate-${dt}.log and .err"
+    - cd ${CI_SCRATCH}
+    - ${UPCXX_UTILS_SOURCE}/contrib/ci-perlmutter.validate.sh
+    - echo "Completed"
+
+Perlmutter:accuracy:
+  stage: accuracy
+  tags:
+    - Perlmutter
+  script:
+    - set -e
+    - echo "Establishing variables"
+    - export BASE=${PSCRATCH}/gitlab-ci/${NERSC_HOST}-${CI_PROJECT_NAME}-${USER}
+    - export CI_SCRATCH=${BASE}/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export INSTALL_PREFIX=${CI_SCRATCH}/install
+    - export BUILD_PREFIX=${CI_SCRATCH}/build
+    - export RUN_PREFIX=${CI_SCRATCH}/runs
+    - export UPCXX_UTILS_SOURCE=${CI_SCRATCH}/repo
+    - echo "BASE=${BASE} CI_SCRATCH=${CI_SCRATCH}"
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/accuracy-${dt}.log and .err"
+    - cd ${CI_SCRATCH}
+    - ${UPCXX_UTILS_SOURCE}/contrib/ci-perlmutter.accuracy.sh
+    - echo "Completed"
+
+
+#
+# hulk
+#
+
+HULK:build:
+  stage: build
+  tags:
+    - HULK
+  script:
+    - set -e
+    - BASE=/work/gitlab-ci
+    - export CI_INSTALL=$BASE/ci-install-upcxx-${UPCXXVER}
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin"
+    - echo "Adding ci-install to PATH"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export CI_UPCXX_CONFIGURE_OPTS="--enable-valgrind --disable-ibv --with-default-network=smp"
+    - export GASNET_PHYSMEM_MAX=2/3
+    - rm -rf ${CI_SCRATCH}
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/build-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/build-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/build-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - env
+    - set -x
+    - git describe --always || ls -l .git || echo "Where is .git?"
+    - ./contrib/ci-ubuntu.build.sh ${BASE}
+    - echo "Completed on hulk"
+
+
+HULK:validation:
+  stage: validation
+  tags:
+    - HULK
+  script:
+    - set -e
+    - BASE=/work/gitlab-ci
+    - export CI_INSTALL=$BASE/ci-install-upcxx-${UPCXXVER}
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin"
+    - echo "Adding ci-install to PATH"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export GASNET_PHYSMEM_MAX=2/3
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/validation-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/validation-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/validation-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - which upcxx
+    - upcxx --version
+    - set -x
+    - ./contrib/ci-ubuntu.validate.sh ${BASE}
+    - echo "Completed on hulk"
+
+HULK:accuracy:
+  stage: accuracy
+  tags:
+    - HULK
+  script:
+    - set -e
+    - BASE=/work/gitlab-ci
+    - export CI_INSTALL=$BASE/ci-install-upcxx-${UPCXXVER}
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin"
+    - echo "Adding ci-install to PATH"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export GASNET_PHYSMEM_MAX=2/3
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/accuracy-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - which upcxx
+    - upcxx --version
+    - set -x
+    - echo "TODO"
+    - echo "Completed on hulk"
+
+
+#
+# Bacteria.lbl.gov - build with GPU
+#
+
+Bacteria:build:
+  stage: build
+  tags:
+    - Bacteria
+  script:
+    - set -e
+    - BASE=/scratch-bacteria/gitlab-ci
+    - export CI_INSTALL=$BASE/ci-install-upcxx-${UPCXXVER}
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin:/usr/local/cuda/bin"
+    - echo "Adding ci-install to PATH"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export CXX=/usr/bin/mpicxx
+    - export CI_UPCXX_CONFIGURE_OPTS="--enable-valgrind --enable-cuda --with-cxx=/usr/bin/mpicxx --enable-ibv --with-default-network=ibv"
+    - export GASNET_PHYSMEM_MAX=2/3
+    - rm -rf ${CI_SCRATCH}
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/build-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/build-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/build-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - env
+    - set -x
+    - git describe --always || ls -l .git || echo "Where is .git?"
+    - ./contrib/ci-ubuntu.build.sh ${BASE}
+    - echo "Completed on bacteria"
+
+Bacteria:validation:
+  stage: validation
+  tags:
+    - Bacteria
+  script:
+    - set -e
+    - BASE=/scratch-bacteria/gitlab-ci
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - echo "Adding ci-install, cuda and quast to path"
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin:/usr/local/cuda/bin:/scratch-fungi/quast-quast_5.2.0"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export CXX=/usr/bin/mpicxx
+    - export GASNET_PHYSMEM_MAX=2/3
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/validation-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/validation-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/validation-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - env
+    - set -x
+    - ./contrib/ci-ubuntu.validate.sh ${BASE}
+    - echo "Completed on bacteria"
+
+
+Bacteria:accuracy:
+  stage: accuracy
+  tags:
+    - Bacteria
+  script:
+    - set -e
+    - BASE=/scratch-bacteria/gitlab-ci
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - export RUN_PREFIX=${CI_SCRATCH}/runs
+    - echo "Adding ci-install, cuda and quast to path"
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin:/usr/local/cuda/bin"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export CXX=/usr/bin/mpicxx
+    - export GASNET_PHYSMEM_MAX=2/3
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/accuracy-${dt}.log and .err at $(date) on $(uname -n) in $(pwd) $(uptime)"
+    - env
+    - which upcxx
+    - set -x
+    - echo "Extra full CI run on bacteria and fungi using GPUs scheduled via the batch system"
+    - cd ${CI_SCRATCH}
+    - rm -f full_test_status-bacteria
+    - |
+      batch << END_TEXT
+        export PATH=${PATH} # keep CI path within batch
+        which upcxx-run
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 8  ${CI_SCRATCH}/build-dbg/test/test_combined >full_test-dbg.log 2>&1  && \
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 12 ${CI_SCRATCH}/build-rwdi/test/test_combined >full_test-rwdi.log 2>&1  && \
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 16 ${CI_SCRATCH}/build-rwd-nothreads/test/test_combined >full_test-rwd-nothreads.log 2>&1  && \
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 32 ${CI_SCRATCH}/build-rel/test/test_combined >full_test-rel.log 2>&1  && \
+        echo Success > full_test_status-bacteria || echo Failed > full_test_status-bacteria
+      END_TEXT
+    - while [ ! -f full_test_status-bacteria ] ; do echo "Waiting for job to complete via batch subsystem"; date; uptime ; sleep 60  ; done
+    - cat full_test-dbg.log full_test-rwdi.log full_test-rwd-nothreads.log full_test-rel.log || /bin/true
+    - grep Success full_test_status-bacteria || FAILED="${FAILED} Could not run multi-node tests"
+    - if [ -z "$FAILED" ] ; then echo "OK" ; else echo "Something failed somehow - ${FAILED}" ; false ; fi
+    - echo "Completed successfully on bacteria"
+
+
+#
+# Fungi.lbl.gov - build without GPU
+#
+
+Fungi:build:
+  stage: build
+  tags:
+    - Fungi
+  script:
+    - set -e
+    - BASE=/scratch-fungi/gitlab-ci
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - echo "Adding ci-install and quast to path"
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export CXX=/usr/bin/mpicxx
+    - export CI_UPCXX_CONFIGURE_OPTS="--enable-valgrind --with-cxx=/usr/bin/mpicxx --enable-ibv --with-default-network=ibv"
+    - export GASNET_PHYSMEM_MAX=2/3
+    - rm -rf ${CI_SCRATCH}
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/build-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/build-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/build-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - env
+    - set -x
+    - git describe --always || ls -l .git || echo "Where is .git?"
+    - ./contrib/ci-ubuntu.build.sh ${BASE}
+    - echo "Completed on fungi"
+    
+Fungi:validation:
+  stage: validation
+  tags:
+    - Fungi
+  script:
+    - set -e
+    - BASE=/scratch-fungi/gitlab-ci
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - echo "Adding ci-install and quast to path"
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin:/scratch-fungi/quast-quast_5.2.0"
+    - export PATH=${CI_EXTRA_PATH}:$PATH
+    - export CXX=/usr/bin/mpicxx
+    - export GASNET_PHYSMEM_MAX=2/3
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/validation-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/validation-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/validation-${dt}.log and .err at $(date) on $(uname -n) in $(pwd)"
+    - env
+    - set -x
+    - ./contrib/ci-ubuntu.validate.sh ${BASE}
+    - echo "Completed on fungi"
+
+Fungi:accuracy:
+  stage: accuracy
+  tags:
+    - Fungi
+  script:
+    - set -e
+    - BASE=/scratch-fungi/gitlab-ci
+    - export CI_SCRATCH=${BASE}/scratch/${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_TAG}
+    - export CI_INSTALL=${BASE}/ci-install-${CI_PROJECT_NAME}-upcxx-${UPCXX_VER}
+    - export RUN_PREFIX=${CI_SCRATCH}/runs
+    - echo "Adding ci-install and quast to path"
+    - export CI_EXTRA_PATH="/usr/bin:${CI_INSTALL}/bin:/scratch-fungi/quast-quast_5.2.0"
+    - export PATH=/usr/bin:${CI_EXTRA_PATH}:$PATH
+    - export CXX=/usr/bin/mpicxx
+    - export GASNET_PHYSMEM_MAX=2/3
+    - mkdir -p ${CI_SCRATCH}
+    - dt=$(date '+%Y%m%d_%H%M%S')
+    - exec >  >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.log)
+    - exec 2> >(tee -ia ${CI_SCRATCH}/accuracy-${dt}.err >&2)
+    - echo "Logging to ${CI_SCRATCH}/accuracy-${dt}.log and .err at $(date) on $(uname -n) in $(pwd) $(uptime)"
+    - env
+    - which upcxx
+    - set -x
+    - echo "Extra full CI run on bacteria and fungi using GPUs scheduled via the batch system"
+    - cd ${CI_SCRATCH}
+    - rm -f full_test_status-fungi
+    - |
+      batch << END_TEXT
+        export PATH=${PATH} # keep CI path within batch
+        which upcxx-run
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 8  ${CI_SCRATCH}/build-dbg/test/test_combined >full_test-dbg.log 2>&1  && \
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 12 ${CI_SCRATCH}/build-rwdi/test/test_combined >full_test-rwdi.log 2>&1  && \
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 16 ${CI_SCRATCH}/build-rwd-nothreads/test/test_combined >full_test-rwd-nothreads.log 2>&1  && \
+        timeout -k 1m -s INT -v 20m upcxx-run -N 2 -n 32 ${CI_SCRATCH}/build-rel/test/test_combined >full_test-rel.log 2>&1  && \
+        echo Success > full_test_status-fungi || echo Failed > full_test_status-fungi
+      END_TEXT
+    - while [ ! -f full_test_status-fungi ] ; do echo "Waiting for job to complete via batch subsystem"; date; uptime ; sleep 60  ; done
+    - cat full_test-dbg.log full_test-rwdi.log full_test-rwd-nothreads.log full_test-rel.log || /bin/true
+    - grep Success full_test_status-fungi || FAILED="${FAILED} Could not run multi-node tests"
+    - if [ -z "$FAILED" ] ; then echo "OK" ; else echo "Something failed somehow - ${FAILED}" ; false ; fi
+    - echo "Completed successfully on fungi"
+
+
+
+after_script:
+  - echo "Done"
+
