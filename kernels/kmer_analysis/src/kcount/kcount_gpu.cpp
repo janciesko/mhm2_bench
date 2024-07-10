@@ -1,11 +1,11 @@
-#include "upcxx_utils.hpp"
-#include "kcount.hpp"
-#include "kmer_dht.hpp"
-#include "devices_gpu.hpp"
+//#include <upcxx_utils.hpp>
+#include <kcount.hpp>
+#include <kmer_dht.hpp>
+#include <devices_gpu.hpp>
 
-#include "gpu-utils/gpu_utils.hpp"
-#include "kcount-gpu/parse_and_pack.hpp"
-#include "kcount-gpu/gpu_hash_table.hpp"
+#include <gpu-utils/gpu_utils.hpp>
+#include <kcount-gpu/parse_and_pack.hpp>
+#include <kcount-gpu/gpu_hash_table.hpp>
 
 
 

@@ -43,7 +43,7 @@
 #include <iostream>
 #include <array>
 
-#include "upcxx_utils/colors.h"
+//#include "upcxx_utils/colors.h"
 #include "gpu_compatibility.hpp"
 #include "gpu_common.hpp"
 

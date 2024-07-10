@@ -42,9 +42,9 @@
 
 #include <upcxx/upcxx.hpp>
 
-#include "upcxx_utils/thread_pool.hpp"
-#include "gpu-utils/gpu_utils.hpp"
-#include "devices_gpu.hpp"
+#include <upcxx_utils/thread_pool.hpp>
+#include <gpu-utils/gpu_utils.hpp>
+#include <devices_gpu.hpp>
 //#include "utils.hpp"
 
 using namespace std;

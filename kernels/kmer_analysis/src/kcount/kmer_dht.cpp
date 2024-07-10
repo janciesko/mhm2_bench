@@ -6,13 +6,13 @@
 #include <iostream>
 #include <limits>
 
-#include "upcxx_utils/log.hpp"
+/*#include "upcxx_utils/log.hpp"
 #include "upcxx_utils/mem_profile.hpp"
 #include "upcxx_utils/progress_bar.hpp"
-#include "upcxx_utils/timers.hpp"
+#include "upcxx_utils/timers.hpp"*/
 
 #include "kmer_dht.hpp"
-#include "kmer.hpp"
+#include "../kmer.hpp"
 
 template <int MAX_K>
 KmerDHT<MAX_K>::KmerDHT(uint64_t my_num_kmers, size_t max_kmer_store_bytes, int max_rpcs_in_flight, bool use_qf)
@@ -37,7 +37,7 @@ KmerDHT<MAX_K>::KmerDHT(uint64_t my_num_kmers, size_t max_kmer_store_bytes, int 
             });
     // setting contig kmers to 0 because there are no contig kmers to use
     auto my_num_ctg_kmers = 0;
-    ht_inserter->init(my_num_kmers, my_num_ctg_kmers, use_qf);
+    ht_inserter->init(my_num_kmers, use_qf);
     barrier();
 }
 

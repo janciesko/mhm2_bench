@@ -6,11 +6,11 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <upcxx/upcxx.hpp>
+//#include <upcxx/upcxx.hpp>
 
-#include "kmer.hpp"
-#include "upcxx_utils/flat_aggr_store.hpp"
-#include "upcxx_utils/three_tier_aggr_store.hpp"
+#include "../kmer.hpp"
+#include <upcxx_utils/flat_aggr_store.hpp>
+#include <upcxx_utils/three_tier_aggr_store.hpp>
 
 using std::pair;
 using std::string;
@@ -79,7 +79,7 @@ public:
 
     ~HashTableInserter();
 
-    void init(size_t max_elems, size_t max_ctg_elems, bool use_qf);
+    void init(size_t max_elems, bool use_qf);
 
     void insert_supermer(const std::string &supermer_seq, kmer_count_t supermer_count);
 

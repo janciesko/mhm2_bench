@@ -2,11 +2,11 @@
  * CPU implementation of SeqBlockInserter, HashTableInserter, helper functions/structs
  */
 
-#include "upcxx_utils.hpp"
+//#include <upcxx_utils.hpp>
 #include "kcount.hpp"
 #include "kmer_dht.hpp"
-#include "kmer.hpp"
 #include "prime.hpp"
+#include "../kmer.hpp"
 
 using namespace std;
 using namespace upcxx;

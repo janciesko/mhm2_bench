@@ -2,7 +2,7 @@
 
 #include "kcount/kcount.hpp"
 #include "kmer_dht.hpp"
-#include "upcxx_utils/mem_profile.hpp"
+#include <upcxx_utils/mem_profile.hpp>
 
 using namespace upcxx;
 using namespace upcxx_utils;

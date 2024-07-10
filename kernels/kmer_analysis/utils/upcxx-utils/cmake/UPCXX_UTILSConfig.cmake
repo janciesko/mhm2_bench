@@ -1,7 +1,0 @@
-message(STATUS "Importing UPCXX_UTILS as a module")
-include(CMakeFindDependencyMacro)
-find_dependency(UPCXX REQUIRED)
-find_dependency(Threads REQUIRED)
-include("${CMAKE_CURRENT_LIST_DIR}/UPCXX_UTILS.cmake")
-set(UPCXX_UTILS_LIBRARIES UPCXX_UTILS_INTERFACE_LIB)
-mark_as_advanced(UPCXX_UTILS_FOUND UPCXX_UTILS_LIBRARIES UPCXX_UTILS_INTERFACE_LIB)

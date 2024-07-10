@@ -42,8 +42,8 @@
 
 #include <upcxx/upcxx.hpp>
 
-#include "upcxx_utils/thread_pool.hpp"
-#include "gpu-utils/gpu_utils.hpp"
+#include <upcxx_utils/thread_pool.hpp>
+#include <gpu-utils/gpu_utils.hpp>
 
 upcxx::team &get_gpu_team();
 size_t get_gpu_avail_mem_per_rank();
